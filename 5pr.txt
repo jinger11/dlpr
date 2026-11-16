@@ -1,0 +1,115 @@
+
+# a. Data preparation
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, Model
+import matplotlib.pyplot as plt
+
+text = "deep learning improves machine learning and deep neural networks"
+tokens = text.lower().split()
+
+vocab = sorted(set(tokens))
+word_to_id = {w: i for i, w in enumerate(vocab)}
+id_to_word = {i: w for w, i in word_to_id.items()}
+
+# b. Generate training data
+window_size = 2
+X, y = [], []
+
+for i, word in enumerate(tokens):
+    context = [
+        tokens[j]
+        for j in range(max(0, i-window_size),
+                       min(len(tokens), i+window_size+1))
+        if j != i
+    ]
+
+    X.append([word_to_id[w] for w in context])
+    y.append(word_to_id[word])
+
+X = tf.keras.preprocessing.sequence.pad_sequences(
+    X, padding="post"
+)
+y = np.array(y)
+
+# c. Build and train CBOW model
+embedding_dim = 10
+
+inputs = layers.Input(shape=(X.shape[1],))
+embedding = layers.Embedding(len(vocab), embedding_dim)(inputs)
+average = layers.GlobalAveragePooling1D()(embedding)
+outputs = layers.Dense(len(vocab), activation="softmax")(average)
+
+model = Model(inputs, outputs)
+
+model.compile(
+    optimizer="adam",
+    loss="sparse_categorical_crossentropy",
+    metrics=["accuracy"]
+)
+
+history = model.fit(X, y, epochs=100, verbose=0)
+
+# d. Display output
+embeddings = model.layers[1].get_weights()[0]
+
+print("Vocabulary:", vocab)
+print("Training samples:", len(X))
+print("Model training completed.")
+print("Embedding shape:", embeddings.shape)
+
+# Plot training loss and accuracy
+fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+
+axes[0].plot(history.history["loss"])
+axes[0].set_title("Training Loss")
+axes[0].set_xlabel("Epoch")
+axes[0].set_ylabel("Loss")
+
+axes[1].plot(history.history["accuracy"])
+axes[1].set_title("Training Accuracy")
+axes[1].set_xlabel("Epoch")
+axes[1].set_ylabel("Accuracy")
+
+plt.tight_layout()
+plt.show()
+
+# Plot learned word embeddings
+plt.figure(figsize=(10, 4))
+plt.imshow(embeddings, aspect="auto", cmap="viridis")
+plt.colorbar(label="Embedding Value")
+plt.xticks(range(embedding_dim),
+           [f"Dim{i+1}" for i in range(embedding_dim)])
+plt.yticks(range(len(vocab)), vocab)
+plt.xlabel("Embedding Dimension")
+plt.ylabel("Word")
+plt.title("Learned Word Embeddings")
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+
+# Check CBOW prediction
+context_words = ["neural", "networks"]
+
+# Convert context words into IDs
+context_ids = [word_to_id[w] for w in context_words]
+
+# Pad input to the required sequence length
+context_ids = tf.keras.preprocessing.sequence.pad_sequences(
+    [context_ids], maxlen=X.shape[1], padding="post"
+)
+
+# Predict target word
+prediction = model.predict(context_ids, verbose=0)
+
+predicted_id = np.argmax(prediction)
+predicted_word = id_to_word[predicted_id]
+
+print("Context Words:", context_words)
+print("Predicted Word:", predicted_word)
+print("Prediction Probabilities:", prediction)
